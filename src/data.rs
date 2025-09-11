@@ -29,8 +29,14 @@ impl Data {
         Ok(Data { timestamp, info })
     }
 
+    pub fn info(&self) -> &[InfoEntry] {
+        &self.info.0
+    }
+
+    /// Return a sorted list of [`Machine`]s.
     pub fn machines(&self) -> Vec<Machine> {
-        self.info
+        let mut ms = self
+            .info
             .0
             .iter()
             .map(|entry| {
@@ -67,7 +73,42 @@ impl Data {
                     active_user,
                 }
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        ms.sort_by_cached_key(|m| m.hostname.clone());
+        ms
+    }
+
+    pub fn total_usage(&self) -> f64 {
+        let info = self.info();
+        let total_cores_used: u32 = info.iter().map(|entry| entry.cpu_usage.used).sum();
+        let total_cores: u32 = info.iter().map(|entry| entry.cpu_usage.total).sum();
+        total_cores_used as f64 / total_cores as f64
+    }
+
+    /// Return a list of tuples with the username and its associated number of threads across
+    /// machines.
+    pub fn tpu(&self) -> Vec<(&String, usize)> {
+        // TODO: Also rewrite this this sucks.
+        let mut tpu = HashMap::<_, usize>::new();
+        for entry in &self.info.0 {
+            for (user, cu) in &entry.usage {
+                // TODO: I think this is a cursed way of counting total usage.
+                *tpu.entry(user).or_default() += cu.len();
+            }
+        }
+
+        let mut tpu: Vec<(&String, usize)> = tpu.into_iter().collect();
+        tpu.sort_by_key(|(_, tasks_sum)| *tasks_sum);
+        tpu
+    }
+
+    pub fn cpu_count(&self) -> u32 {
+        let mut cpu_count = 0;
+        for entry in self.info() {
+            cpu_count += entry.cpu_usage.total;
+        }
+        cpu_count
     }
 }
 

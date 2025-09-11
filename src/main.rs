@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::io::Read;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
@@ -165,17 +165,71 @@ impl<'a> Into<Row<'a>> for Machine {
 }
 
 struct App {
+    host_info: HostInfo,
+    path: PathBuf,
+    data: Option<Data>,
+    dirty: bool,
+    exit: bool,
+}
+
+struct HostInfo {
     hostname: String,
     user: String,
     os: String,
     os_version: String,
-    data: Data,
-    exit: bool,
+}
+
+impl HostInfo {
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            hostname: hostname::get()?.to_str().unwrap_or("?").to_string(),
+            user: users::get_current_username()
+                .map(|u| u.to_string_lossy().to_string())
+                .unwrap_or("?".to_string()),
+            os: System::name().unwrap_or("?".to_string()),
+            os_version: System::os_version().unwrap_or("?".to_string()),
+        })
+    }
 }
 
 impl App {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        Ok(Self {
+            host_info: HostInfo::new()?,
+            path: path.as_ref().to_path_buf(),
+            data: None,
+            dirty: true,
+            exit: false,
+        })
+    }
+
+    pub fn host_info(&self) -> &HostInfo {
+        &self.host_info
+    }
+
+    /// Before reading, the data must be [refreshed](Self::refresh_data). If this is not the case,
+    /// this function may return `None`.
+    pub fn data(&self) -> Option<&Data> {
+        self.data.as_ref()
+    }
+
+    pub fn refresh_data(&mut self) -> Result<&Data> {
+        let data_path = &self.path;
+        // TODO: Perhaps we can use a thread_local to re-use the allocation?
+        let mut s = String::new();
+        std::fs::File::open(data_path)
+            .context(format!(
+                "could not open the path {data_path:?}, try providing a path as an argument"
+            ))?
+            .read_to_string(&mut s)?;
+        let data = Data::parse(&s)?;
+        self.data = Some(data);
+        Ok(self.data().unwrap())
+    }
+
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
+            self.refresh_data()?; // TODO: Cursed because we shouldn't update every frame.
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -214,38 +268,20 @@ impl App {
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let App {
+        let HostInfo {
             hostname,
             user,
             os,
             os_version,
-            data,
-            exit: _,
-        } = self;
+        } = self.host_info();
 
-        let machines = {
-            let mut ms = data.machines();
-            ms.sort_by_cached_key(|m| m.hostname.clone());
-            ms
-        };
-
-        // TODO: Move to a method on Data.
-        // TODO: Also rewrite this this sucks.
-        let mut tpu = HashMap::<_, usize>::new();
-        let mut cpu_count = 0;
-        for entry in &data.info.0 {
-            cpu_count += entry.cpu_usage.total;
-            for (user, cu) in &entry.usage {
-                // TODO: I think this is a cursed way of counting total usage.
-                *tpu.entry(user).or_default() += cu.len();
-            }
-        }
-        // TODO: This should happen at the App update level, not during rendering.
-        let tpu = {
-            let mut tpu: Vec<(&String, usize)> = tpu.into_iter().collect();
-            tpu.sort_by_key(|(_, tasks_sum)| *tasks_sum);
-            tpu
-        };
+        let data = self
+            .data()
+            .expect("data must be refreshed before it is read");
+        let total_usage = data.total_usage();
+        let machines = data.machines();
+        let tpu = data.tpu();
+        let cpu_count = data.cpu_count();
 
         let header_info = Line::from(vec![
             Span::from(user).bold(),
@@ -255,11 +291,6 @@ impl Widget for &App {
         ])
         .left_aligned();
         let header_info_width = header_info.width();
-        let total_usage = {
-            let total_cores_used: u32 = data.info.0.iter().map(|entry| entry.cpu_usage.used).sum();
-            let total_cores: u32 = data.info.0.iter().map(|entry| entry.cpu_usage.total).sum();
-            total_cores_used as f64 / total_cores as f64
-        };
         let gauge = LineGauge::default()
             .filled_style(Style::new().light_red())
             .unfilled_style(Style::new().dark_gray().dim())
@@ -347,24 +378,7 @@ fn main() -> Result<()> {
         .next()
         .unwrap_or("/martini/sshuser/machine_usage/machine_usage.dat".to_string());
 
-    let mut s = String::new();
-    std::fs::File::open(&data_path)
-        .context(format!(
-            "could not open the path {data_path:?}, try providing a path as an argument"
-        ))?
-        .read_to_string(&mut s)?;
-    let data = Data::parse(&s)?;
-
-    let mut app = App {
-        hostname: hostname::get()?.to_str().unwrap_or("?").to_string(),
-        user: users::get_current_username()
-            .map(|u| u.to_string_lossy().to_string())
-            .unwrap_or("?".to_string()),
-        os: System::name().unwrap_or("?".to_string()),
-        os_version: System::os_version().unwrap_or("?".to_string()),
-        data,
-        exit: false,
-    };
+    let mut app = App::new(data_path)?;
     let mut terminal = ratatui::init();
     let result = app.run(&mut terminal);
     ratatui::restore();
