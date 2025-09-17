@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 pub const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
 // TODO: Reconsider and make configurable.
-pub const IGNORE_USERS: [&str; 2] = ["sshuser", "root"];
-pub const IGNORE_PROCESSES: [&str; 1] = ["polkitd"];
+pub const IGNORE_USERS: [&str; 4] = ["sshuser", "root", "messagebus", "+"];
+pub const IGNORE_PROCESSES: [&str; 4] =
+    ["polkitd", "gsd-housekeepin", "gvfs-udisks2-vo", "systemd"];
 
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
