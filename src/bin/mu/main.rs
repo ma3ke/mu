@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -10,9 +9,11 @@ use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Cell, LineGauge, Paragraph, Row, Table, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame};
-use sysinfo::System;
 
-use crate::data::Data;
+use mu::HostInfo;
+use mu::info::Data;
+
+use data::DataView;
 
 mod data; // TODO: Rename?
 
@@ -168,28 +169,9 @@ struct App {
     host_info: HostInfo,
     path: PathBuf,
     data: Option<Data>,
+    #[allow(dead_code)] // TODO
     dirty: bool,
     exit: bool,
-}
-
-struct HostInfo {
-    hostname: String,
-    user: String,
-    os: String,
-    os_version: String,
-}
-
-impl HostInfo {
-    pub fn new() -> Result<Self> {
-        Ok(Self {
-            hostname: hostname::get()?.to_str().unwrap_or("?").to_string(),
-            user: users::get_current_username()
-                .map(|u| u.to_string_lossy().to_string())
-                .unwrap_or("?".to_string()),
-            os: System::name().unwrap_or("?".to_string()),
-            os_version: System::os_version().unwrap_or("?".to_string()),
-        })
-    }
 }
 
 impl App {
@@ -216,13 +198,10 @@ impl App {
     pub fn refresh_data(&mut self) -> Result<&Data> {
         let data_path = &self.path;
         // TODO: Perhaps we can use a thread_local to re-use the allocation?
-        let mut s = String::new();
-        std::fs::File::open(data_path)
-            .context(format!(
-                "could not open the path {data_path:?}, try providing a path as an argument"
-            ))?
-            .read_to_string(&mut s)?;
-        let data = Data::parse(&s)?;
+        let file = std::fs::File::open(data_path).context(format!(
+            "could not open the path {data_path:?}, try providing a path as an argument"
+        ))?;
+        let data = serde_json::from_reader(file)?;
         self.data = Some(data);
         Ok(self.data().unwrap())
     }
