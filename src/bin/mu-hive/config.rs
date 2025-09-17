@@ -2,8 +2,10 @@ use std::{io::Read, path::Path};
 
 use anyhow::{Context, Result};
 
+#[derive(Debug, Clone)]
 pub struct MachinesConfig(Box<[Machine]>);
 
+#[derive(Debug, Clone)]
 pub struct Machine {
     pub room: String,
     pub hostname: String,
@@ -13,13 +15,11 @@ pub struct Machine {
     pub note: Option<String>,
 }
 
-impl IntoIterator for MachinesConfig {
-    type Item = Machine;
+impl std::ops::Deref for MachinesConfig {
+    type Target = [Machine];
 
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

@@ -53,6 +53,7 @@ pub async fn gather(machine: Machine, bee_path: &str) -> Result<RichInfo> {
 pub async fn peruse(machines_config: MachinesConfig, bee_path: &str) -> Result<Box<[RichInfo]>> {
     let tasks: Vec<_> = machines_config
         .into_iter()
+        .cloned()
         .map(|machine| {
             let bee_path = bee_path.to_string();
             eprintln!("INFO: Setting up ssh into {:?}.", machine.hostname);
