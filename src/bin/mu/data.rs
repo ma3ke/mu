@@ -83,7 +83,8 @@ impl DataView for mu::info::Data {
         }
 
         let mut tpu: Vec<(&String, usize)> = tpu.into_iter().collect();
-        tpu.sort_by_key(|(_, tasks_sum)| *tasks_sum);
+        // We sort by the number of threads, followed by the name to deteministically break ties.
+        tpu.sort_by_key(|(name, tasks_sum)| (*tasks_sum, *name));
         tpu
     }
 
