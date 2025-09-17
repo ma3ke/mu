@@ -144,13 +144,18 @@ impl<'a> Into<Row<'a>> for Machine {
             .bg(bg)
         };
         let active_user = if let Some(ActiveUser { user, cores, task }) = active_user {
-            Cell::from(Line::from(vec![
+            let mut line = Line::from(vec![
                 Span::raw(format!("{user:>8}")).bold().gray(),
                 Span::raw(":").dim(),
                 Span::raw(task).italic(),
-                Span::raw("@").dim(),
-                Span::raw(cores.to_string()).bold().gray(),
-            ]))
+            ]);
+            if cores > 1 {
+                line.extend([
+                    Span::raw("@").dim(),
+                    Span::raw(cores.to_string()).bold().gray(),
+                ]);
+            }
+            Cell::from(line)
         } else {
             Cell::default() // If there is no active user process we leave the cell empty.
         };
@@ -294,7 +299,7 @@ impl Widget for &App {
                 Constraint::Max(23),
                 Constraint::Max(9),
                 Constraint::Length(7),
-                Constraint::Max(22),
+                Constraint::Max(40),
             ],
         )
         .block(Block::new());
