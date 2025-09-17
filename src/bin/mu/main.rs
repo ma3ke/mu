@@ -330,10 +330,18 @@ impl Widget for &App {
         let stats =
             Table::new(stats_rows, [Constraint::Length(4), Constraint::Min(8)]).block(stats_block);
 
+        // TODO: Better minute/seconds reporting?
+        let age = match data.time().elapsed() {
+            Ok(age) => format!("{:.0} s ago", age.as_secs_f32()),
+            // This would be very weird but it's cool to handle it in a funny way :)
+            Err(error) => format!("{:.3} s in the future", error.duration().as_secs_f32()),
+        };
         let notes_block = Block::bordered()
             .title("Notes")
             .fg(Color::from_str("#70abaf").unwrap());
-        let notes = Paragraph::new("").block(notes_block);
+        let notes = Paragraph::new(format!("Last update:\n  {age}."))
+            .wrap(Wrap { trim: false })
+            .block(notes_block);
 
         let vertical_layout = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
         let header_layout = Layout::horizontal([
@@ -343,7 +351,7 @@ impl Widget for &App {
         let main_layout = Layout::horizontal([Constraint::Fill(1), Constraint::Length(18)]);
         let gutter_layout = Layout::vertical([
             Constraint::Max(stats_height),
-            Constraint::Fill(1),
+            Constraint::Max(4),
             Constraint::Fill(1),
         ]);
         let [header_area, main_area] = vertical_layout.areas(area);

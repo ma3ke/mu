@@ -6,6 +6,12 @@ pub struct Data {
     pub timestamp: u64,
     pub info: Box<[RichInfo]>,
 }
+impl Data {
+    // TODO: Unify with the mu viewer timestamp thing.
+    pub fn time(&self) -> std::time::SystemTime {
+        std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(self.timestamp)
+    }
+}
 
 /// Information for a single machine associated with room and an owner note.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
