@@ -8,7 +8,7 @@ use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Cell, LineGauge, Paragraph, Row, Table, Widget, Wrap};
-use ratatui::{DefaultTerminal, Frame};
+use ratatui::{DefaultTerminal, Frame, symbols};
 
 use mu::HostInfo;
 use mu::info::Data;
@@ -271,8 +271,9 @@ impl Widget for &App {
         .left_aligned();
         let header_info_width = header_info.width();
         let gauge = LineGauge::default()
-            .filled_style(Style::new().light_red())
-            .unfilled_style(Style::new().dark_gray().dim())
+            .line_set(symbols::line::THICK)
+            .filled_style(Style::new().red())
+            .unfilled_style(Style::new().dim())
             .ratio(total_usage)
             .block(Block::new());
 
