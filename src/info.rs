@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
+pub const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
 
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

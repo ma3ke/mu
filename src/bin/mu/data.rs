@@ -1,5 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
+use mu::info::PROCESS_USAGE_THRESHOLD_PERCENT;
+
 use crate::{ActiveUser, CpuUsage, Machine, Owner};
 
 pub trait DataView {
@@ -45,7 +47,12 @@ impl DataView for mu::info::Data {
                         .unwrap(), // TODO: UGH
                     room: entry.room.clone(),
                     cpu_usage: CpuUsage {
-                        used: entry.info.cpus.iter().filter(|&&u| u > 0.1).count() as u32,
+                        used: entry
+                            .info
+                            .cpus
+                            .iter()
+                            .filter(|&&u| u > PROCESS_USAGE_THRESHOLD_PERCENT)
+                            .count() as u32,
                         total: entry.info.cpus.len() as u32,
                     },
                     active_user,
