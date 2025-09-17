@@ -68,10 +68,19 @@ pub async fn peruse(machines_config: MachinesConfig, bee_path: &str) -> Result<B
 
     let mut output_usage = Vec::new();
     for task in tasks {
-        let rich_info = task.await??; // TODO: Whut with the two `??`?.
-        output_usage.push(rich_info);
+        match task.await? {
+            Ok(rich_info) => output_usage.push(rich_info),
+            Err(e) => {
+                let root_cause = e.root_cause();
+                eprintln!("WARNING: {e}");
+                eprintln!("         {root_cause}");
+            }
+        };
     }
 
+    let nsuccess = output_usage.len();
+    let n = machines_config.len();
+    eprintln!("INFO: All machines have been perused. ({nsuccess}/{n} success)");
     Ok(output_usage.into_boxed_slice())
 }
 
@@ -102,6 +111,7 @@ fn main() -> Result<()> {
     serde_json::to_writer_pretty(output_file, &data).context(format!(
         "could not write collected usage to output file {output_path:?}"
     ))?;
+    eprintln!("INFO: Output was written to {output_path:?} with timestamp {timestamp}.");
 
     Ok(())
 }
