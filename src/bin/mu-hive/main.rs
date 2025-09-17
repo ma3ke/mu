@@ -87,6 +87,8 @@ pub async fn peruse(machines_config: MachinesConfig, bee_path: &str) -> Result<B
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    let start = std::time::Instant::now();
+
     let machines_path = &args.machines;
     let machines_config = MachinesConfig::read_from_config(machines_path)
         .context(format!("could not process machines file {machines_path:?}"))?;
@@ -112,6 +114,9 @@ fn main() -> Result<()> {
         "could not write collected usage to output file {output_path:?}"
     ))?;
     eprintln!("INFO: Output was written to {output_path:?} with timestamp {timestamp}.");
+
+    let duration = start.elapsed().as_secs_f32();
+    eprintln!("INFO: Execution took {duration:.2} s.");
 
     Ok(())
 }
