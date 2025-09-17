@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
+
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Data {
@@ -113,7 +115,6 @@ impl Info {
             let cpu_usage = proc.cpu_usage();
 
             // Ignore processes with low usage values.
-            const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 5.0;
             if cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT {
                 continue;
             }
