@@ -24,7 +24,6 @@ impl DataView for mu::info::Data {
             .info
             .iter()
             .map(|entry| {
-                let ignore_users = ["sshuser", "root"]; // TODO: Reconsider and make configurable.
                 let active_user = entry
                     .info
                     .usage
@@ -38,8 +37,7 @@ impl DataView for mu::info::Data {
                             .max_by_key(|cu| cu.usage as u64)
                             .map(|cu| cu.name.to_string())
                             .unwrap_or("?".to_string()),
-                    })
-                    .filter(|au| !ignore_users.contains(&au.user.as_str()));
+                    });
 
                 Machine {
                     hostname: entry.info.hostname.clone(),

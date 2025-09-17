@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 pub const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
+// TODO: Reconsider and make configurable.
+pub const IGNORE_USERS: [&str; 2] = ["sshuser", "root"];
+pub const IGNORE_PROCESSES: [&str; 1] = ["polkitd"];
 
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -114,8 +117,11 @@ impl Info {
                 .to_string();
             let cpu_usage = proc.cpu_usage();
 
-            // Ignore processes with low usage values.
-            if cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT {
+            // Ignore processes based on their name, user, or due to low usage values.
+            if IGNORE_PROCESSES.contains(&name.as_str())
+                || IGNORE_USERS.contains(&user.as_str())
+                || cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT
+            {
                 continue;
             }
 
