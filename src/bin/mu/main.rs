@@ -11,7 +11,7 @@ use ratatui::widgets::{Block, Cell, LineGauge, Paragraph, Row, Table, Widget, Wr
 use ratatui::{DefaultTerminal, Frame, symbols};
 
 use mu::HostInfo;
-use mu::info::Data;
+use mu::info::{Data, LoadAvg};
 
 use data::DataView;
 
@@ -22,6 +22,7 @@ struct Machine {
     owner: Owner,
     room: String,
     cpu_usage: CpuUsage,
+    load_avg: LoadAvg,
     active_user: Option<ActiveUser>,
 }
 
@@ -76,12 +77,13 @@ impl<'a> Into<Row<'a>> for Machine {
             room,
 
             cpu_usage: CpuUsage { used, total },
+            load_avg,
             active_user,
         } = self;
 
         let hostname = {
-            let text = Span::from(format!("{hostname}"));
-            let t = used as f32 / total as f32;
+            let text = Span::from(hostname);
+            let t = load_avg.five / total as f64;
             // TODO: Make a const from this?
             let gradient = [
                 Color::from_str("#b0cd75").unwrap(),
@@ -95,7 +97,7 @@ impl<'a> Into<Row<'a>> for Machine {
                 Color::from_str("#bf3d4a").unwrap(),
                 Color::from_str("#c41829").unwrap(),
             ];
-            let idx = ((t * gradient.len().saturating_sub(1) as f32) as usize)
+            let idx = ((t * gradient.len().saturating_sub(1) as f64) as usize)
                 .clamp(0, gradient.len() - 1);
             let color = gradient[idx];
 
@@ -163,7 +165,7 @@ impl<'a> Into<Row<'a>> for Machine {
         Row::new(vec![
             hostname,
             owner,
-            Cell::from(Text::from(format!("{room}")).right_aligned()).dim(),
+            Cell::from(Text::from(room).right_aligned()).dim(),
             cpu,
             active_user,
         ])

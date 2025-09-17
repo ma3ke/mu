@@ -53,6 +53,7 @@ impl DataView for mu::info::Data {
                             .count() as u32,
                         total: entry.info.cpus.len() as u32,
                     },
+                    load_avg: entry.info.load_avg.clone(),
                     active_user,
                 }
             })
