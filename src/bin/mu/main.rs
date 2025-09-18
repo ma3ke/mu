@@ -109,9 +109,20 @@ impl<'a> Into<Row<'a>> for Machine {
             Cell::from(text.fg(color).add_modifier(modifier))
         };
         // TODO: Add an owner.name() -> Option<String> thing.
+        // We want to know whether the main active user of a machine is also its owner.
         let uses_own = match (&owner, &active_user) {
             (Owner::Member(name) | Owner::Visitor(name) | Owner::Student(name), Some(au))
                 if *name == au.user =>
+            {
+                Modifier::UNDERLINED
+            }
+            _ => Modifier::empty(),
+        };
+        // We also want to know whether a student or visitor's machine is most actively used by
+        // somebody else.
+        let other_user = match (&owner, &active_user) {
+            (Owner::Member(name) | Owner::Visitor(name) | Owner::Student(name), Some(au))
+                if *name != au.user =>
             {
                 Modifier::UNDERLINED
             }
@@ -124,11 +135,21 @@ impl<'a> Into<Row<'a>> for Machine {
                 Span::raw(name).style(owner_name_style),
             ])),
             Owner::Visitor(name) => Cell::from(Line::from(vec![
-                Span::raw("v ").italic().light_cyan().dim(),
+                Span::raw("v")
+                    .italic()
+                    .light_cyan()
+                    .dim()
+                    .add_modifier(other_user),
+                Span::raw(" "),
                 Span::raw(name).style(owner_name_style),
             ])),
             Owner::Student(name) => Cell::from(Line::from(vec![
-                Span::raw("s ").italic().light_magenta().dim(),
+                Span::raw("s")
+                    .italic()
+                    .light_magenta()
+                    .dim()
+                    .add_modifier(other_user),
+                Span::raw(" "),
                 Span::raw(name).style(owner_name_style),
             ])),
             Owner::Reserve => Cell::from(Span::raw("Reservation required").italic().gray()),
