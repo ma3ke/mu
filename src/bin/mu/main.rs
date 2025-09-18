@@ -226,10 +226,13 @@ impl App {
     pub fn refresh_data(&mut self) -> Result<&Data> {
         let data_path = &self.path;
         // TODO: Perhaps we can use a thread_local to re-use the allocation?
-        let file = std::fs::File::open(data_path).context(format!(
+
+        // Read all usage data file contents at once in an attempt to avoid deserializing the file
+        // contents while it is being written by `mu-hive`.
+        let file = std::fs::read(data_path).context(format!(
             "could not open the path {data_path:?}, try providing a path as an argument"
         ))?;
-        let data = serde_json::from_reader(file)?;
+        let data = serde_json::from_slice(&file)?;
         self.data = Some(data);
         Ok(self.data().unwrap())
     }
