@@ -327,7 +327,7 @@ impl Widget for &App {
                 Constraint::Max(23),
                 Constraint::Max(9),
                 Constraint::Length(7),
-                Constraint::Max(40),
+                Constraint::Max(30),
             ],
         )
         .block(Block::new());
