@@ -1,4 +1,5 @@
-use std::{io::Write, path::PathBuf};
+use std::io::Write;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -34,32 +35,53 @@ struct Args {
     /// each host machine listed in the machines configuration.
     #[clap(long, short)]
     bee: String,
+    /// Path to the directory for writing the `mu-bee` logs.
+    ///
+    /// The file will be written from the perspective of this program.
+    #[clap(long, short = 'l')]
+    bee_log: Option<PathBuf>,
 }
 
-pub async fn gather(machine: Machine, bee_path: &str) -> Result<RichInfo> {
+pub async fn gather(
+    machine: Machine,
+    bee_path: &str,
+    bee_log_dir: Option<PathBuf>,
+) -> Result<RichInfo> {
     // TODO: Find out from openssh crate docs whether we want 'process-based' or 'mux-based' thing idk.
     let session = Session::connect(&machine.hostname, KnownHosts::Strict).await?;
     // TODO: See if it's possible to more directly stream the information to our deserializer.
     let hn = &machine.hostname;
     eprintln!("INFO: ({hn}) Connection established. Starting bee execution.");
     let bee = session.command(bee_path).output().await?;
-    eprintln!("INFO: ({hn}) Executed bee. Deserializing.");
+    eprintln!("INFO: ({hn}) Executed bee.");
+    if let Some(bee_log_dir) = bee_log_dir {
+        let log_path = bee_log_dir.join(format!("bee-{hn}.log"));
+        std::fs::write(&log_path, bee.stderr)
+            .context(format!("could not write bee log to {log_path:?}"))?;
+        eprintln!("INFO: ({hn}) Wrote bee log to {log_path:?}.");
+    }
     let info =
         serde_json::from_slice(&bee.stdout).context("could not deserialize output from bee")?;
+    eprintln!("INFO: ({hn}) Deserialized info.");
     eprintln!("INFO: ({hn}) Done.");
     Ok(RichInfo::new(info, machine.room, machine.note))
 }
 
-pub async fn peruse(machines_config: MachinesConfig, bee_path: &str) -> Result<Box<[RichInfo]>> {
+pub async fn peruse(
+    machines_config: MachinesConfig,
+    bee_path: &str,
+    bee_log_dir: Option<PathBuf>,
+) -> Result<Box<[RichInfo]>> {
     let tasks: Vec<_> = machines_config
         .into_iter()
         .cloned()
         .map(|machine| {
             let bee_path = bee_path.to_string();
+            let bee_log_dir = bee_log_dir.clone();
             eprintln!("INFO: Setting up ssh into {:?}.", machine.hostname);
             tokio::spawn(async move {
                 let hostname = machine.hostname.clone();
-                gather(machine, &bee_path)
+                gather(machine, &bee_path, bee_log_dir)
                     .await
                     .context(format!("problem while gathering usage from {hostname:?}"))
             })
@@ -93,7 +115,8 @@ fn main() -> Result<()> {
         .context(format!("could not process machines file {machines_path:?}"))?;
 
     let runtime = tokio::runtime::Runtime::new().context("could not set up async runtime")?;
-    let info = runtime.block_on(async { peruse(machines_config, &args.bee).await })?;
+    let info =
+        runtime.block_on(async { peruse(machines_config, &args.bee, args.bee_log).await })?;
 
     let data = Data::new(info);
 
