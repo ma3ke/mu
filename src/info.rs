@@ -2,9 +2,15 @@ use std::collections::HashMap;
 
 pub const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
 // TODO: Reconsider and make configurable.
-pub const IGNORE_USERS: [&str; 4] = ["sshuser", "root", "messagebus", "+"];
-pub const IGNORE_PROCESSES: [&str; 4] =
-    ["polkitd", "gsd-housekeepin", "gvfs-udisks2-vo", "systemd"];
+pub const IGNORE_USERS: [&str; 5] = ["sshuser", "root", "messagebus", "syslog", "+"];
+pub const IGNORE_PROCESSES: [&str; 5] = [
+    "polkitd",
+    "gsd-housekeepin",
+    "gvfs-udisks2-vo",
+    "systemd",
+    "tracker-miner-f",
+];
+pub const RENAME_PROCESSES: [(&str, &str); 1] = [("vmd_LINUXAMD64", "vmd")];
 
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -120,7 +126,7 @@ impl Info {
                 continue;
             }
 
-            let name = proc.name().to_string_lossy().to_string();
+            let mut name = proc.name().to_string_lossy().to_string();
             let user = proc
                 .effective_user_id()
                 .or(proc.user_id())
@@ -136,6 +142,13 @@ impl Info {
                 || cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT
             {
                 continue;
+            }
+
+            // TODO: I don't love this but it'll do for now.
+            for (bad_name, better_name) in RENAME_PROCESSES {
+                if name == bad_name {
+                    name = better_name.to_string();
+                }
             }
 
             let proc = Process::new(name.clone(), user.clone(), cpu_usage);
