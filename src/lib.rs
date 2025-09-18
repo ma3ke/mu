@@ -1,6 +1,7 @@
 use anyhow::Result;
 use sysinfo::System;
 
+pub mod config;
 pub mod info;
 
 #[derive(Debug, Clone)]

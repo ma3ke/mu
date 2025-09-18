@@ -1,16 +1,8 @@
 use std::collections::HashMap;
 
+use crate::config::Config;
+
 pub const PROCESS_USAGE_THRESHOLD_PERCENT: f32 = 10.0;
-// TODO: Reconsider and make configurable.
-pub const IGNORE_USERS: [&str; 5] = ["sshuser", "root", "messagebus", "syslog", "+"];
-pub const IGNORE_PROCESSES: [&str; 5] = [
-    "polkitd",
-    "gsd-housekeepin",
-    "gvfs-udisks2-vo",
-    "systemd",
-    "tracker-miner-f",
-];
-pub const RENAME_PROCESSES: [(&str, &str); 1] = [("vmd_LINUXAMD64", "vmd")];
 
 /// The structure stored in `machine_usage.dat`
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -103,7 +95,7 @@ impl Process {
 }
 
 impl Info {
-    pub fn new(system: &sysinfo::System) -> Self {
+    pub fn new(system: &sysinfo::System, config: Config) -> Self {
         // TODO: Consider if this value is meaningfully different here than if we request it
         // _right_ after initializing the System, when the load average has been minimally poisoned
         // by our presence.
@@ -137,18 +129,15 @@ impl Info {
             let cpu_usage = proc.cpu_usage();
 
             // Ignore processes based on their name, user, or due to low usage values.
-            if IGNORE_PROCESSES.contains(&name.as_str())
-                || IGNORE_USERS.contains(&user.as_str())
-                || cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT
-            {
+            let ignore = config.is_ignored_user(&user) || config.is_ignored_process(&name);
+            let low_usage = cpu_usage < PROCESS_USAGE_THRESHOLD_PERCENT;
+            if ignore || low_usage {
                 continue;
             }
 
-            // TODO: I don't love this but it'll do for now.
-            for (bad_name, better_name) in RENAME_PROCESSES {
-                if name == bad_name {
-                    name = better_name.to_string();
-                }
+            // Rename if necessary.
+            if let Some(renamed) = config.get_canonical_name(&name) {
+                name = renamed.to_string();
             }
 
             let proc = Process::new(name.clone(), user.clone(), cpu_usage);
