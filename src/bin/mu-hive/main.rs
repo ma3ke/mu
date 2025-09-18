@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -108,11 +108,14 @@ fn main() -> Result<()> {
     };
 
     let output_path = &args.output;
-    let output_file = std::fs::File::create(output_path)
-        .context(format!("could not open output file {output_path:?}"))?;
-    serde_json::to_writer_pretty(output_file, &data).context(format!(
+    // We first serialize into memory before writing the file, rather than writing to the file
+    // directly, to limit the time that the file is in an invalid state.
+    let output = serde_json::to_string_pretty(&data).context(format!(
         "could not write collected usage to output file {output_path:?}"
     ))?;
+    let mut output_file = std::fs::File::create(output_path)
+        .context(format!("could not open output file {output_path:?}"))?;
+    output_file.write_all(output.as_bytes())?;
     eprintln!("INFO: Output was written to {output_path:?} with timestamp {timestamp}.");
 
     let duration = start.elapsed().as_secs_f32();
