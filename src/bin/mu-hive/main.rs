@@ -85,27 +85,17 @@ pub async fn peruse(machines_config: MachinesConfig, bee_path: &str) -> Result<B
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
-
     let start = std::time::Instant::now();
+    let args = Args::parse();
 
     let machines_path = &args.machines;
     let machines_config = MachinesConfig::read_from_config(machines_path)
         .context(format!("could not process machines file {machines_path:?}"))?;
 
     let runtime = tokio::runtime::Runtime::new().context("could not set up async runtime")?;
+    let info = runtime.block_on(async { peruse(machines_config, &args.bee).await })?;
 
-    let output_usage = runtime.block_on(async { peruse(machines_config, &args.bee).await })?;
-
-    // TODO: Unify with the mu viewer timestamp thing.
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let data = Data {
-        timestamp,
-        info: output_usage,
-    };
+    let data = Data::new(info);
 
     let output_path = &args.output;
     // We first serialize into memory before writing the file, rather than writing to the file
@@ -116,6 +106,7 @@ fn main() -> Result<()> {
     let mut output_file = std::fs::File::create(output_path)
         .context(format!("could not open output file {output_path:?}"))?;
     output_file.write_all(output.as_bytes())?;
+    let timestamp = data.timestamp;
     eprintln!("INFO: Output was written to {output_path:?} with timestamp {timestamp}.");
 
     let duration = start.elapsed().as_secs_f32();

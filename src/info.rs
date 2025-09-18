@@ -12,8 +12,20 @@ pub struct Data {
     pub timestamp: u64,
     pub info: Box<[RichInfo]>,
 }
+
 impl Data {
-    // TODO: Unify with the mu viewer timestamp thing.
+    /// Creates a new [`Data`].
+    ///
+    /// The timestamp will be generated from the current time.
+    pub fn new(info: Box<[RichInfo]>) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap() // Trust me, we exist after the unix epoch.
+            .as_secs();
+        Self { timestamp, info }
+    }
+
+    /// Returns the time stored in the timestamp of this [`Data`].
     pub fn time(&self) -> std::time::SystemTime {
         std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(self.timestamp)
     }
