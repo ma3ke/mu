@@ -159,8 +159,10 @@ impl<'a> Into<Row<'a>> for Machine {
             let bg = Color::from_str("#999999").unwrap();
             let bright = Color::from_str("#eeeeee").unwrap();
             let dim = Color::from_str("#cccccc").unwrap();
+            let u = load_avg.one.round() as u32;
             Cell::from(Line::from(vec![
-                Span::raw(format!("{used:>3}")).fg(bright).bold(),
+                // Span::raw(format!("{used:>3}")).fg(bright).bold(),
+                Span::raw(format!("{u:>3}")).fg(bright).bold(),
                 Span::raw("/").dim().fg(dim),
                 Span::raw(format!("{total:<3}")).fg(dim).bold(),
             ]))
