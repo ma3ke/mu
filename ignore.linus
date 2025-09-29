@@ -1,0 +1,24 @@
+# Users
+ignore-user: sshuser
+ignore-user: root
+ignore-user: messagebus
+ignore-user: syslog
+ignore-user: rtkit
+ignore-user: +
+
+# Process names
+ignore-proc: polkitd
+ignore-proc: gsd-housekeepin
+ignore-proc: gvfs-udisks2-vo
+ignore-proc: systemd
+ignore-proc: tracker-miner-f
+ignore-proc: pool-tracker-mi
+ignore-proc: tracker-extract
+
+# Rename process names
+rename-proc: vmd_LINUXAMD64  -> vmd
+rename-proc: Isolated Web Co -> (browser)
+rename-proc: orca            -> orca🐳
+rename-proc: TeamViewer_Desk -> TeamViewer
+
+# <3 u linus xx marieke
