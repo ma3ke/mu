@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>machine usage</title>
+		<style>
+			/* Stylesheet embedded from style.css. */
+			{% include "style.css" %}
+		</style>
+	</head>
+	<body>
+	<div class="machines">
+		{% for machine in machines %}
+		<div class="row">
+			<div class="hostname hotness-{{machine.hotness}}">
+				<span title="{{machine.hostname}} at {{machine.load_avg.five}} load">
+					{{machine.hostname}}
+				</span>
+			</div>
+			<div class="owner-mark">
+				{# TODO: Is there a better check for this? #}
+				{% set mark = machine.owner_mark -%}
+				{% if mark != "" %}
+				{% if mark == "v" %}
+					{% set mark_title = "Visitor" -%}
+				{% elif mark == "s" %}
+					{% set mark_title = "Student" -%}
+				{% endif %}
+				<span class="mark-{{mark}}" title="{{mark_title}}">{{mark}}</span>
+				{% endif %}
+			</div>
+			{# TODO: This ought to be a bool in the struct or something. #}
+			<div class="owner {% if machine.owner == "Reservation required" %}reserve{% endif %}">
+				<span title="owner">{{machine.owner}}</span>
+			</div>
+			<div class="room">
+				<span title="room">{{machine.room}}</span>
+			</div>
+			<div class="cpu">
+				<span class="used" title="used cores">{{machine.cpu_usage.used}}</span><span class="divider">/</span><span class="total" title="total cores">{{machine.cpu_usage.total}}</span>
+			</div>
+			{% if machine.active_user %}
+			<div class="active-task">
+				<span class="user" title="active task user">{{machine.active_user.user}}</span><span class="divider">:</span><span class="name" title="active task name">{{machine.active_user.task}}</span>{% if machine.active_user.cores > 1 %}<span class="divider">@</span><span class="cores" title="active task cores">{{machine.active_user.cores}}</span>{% endif %}
+			</div>
+			{% endif %}
+		</div>
+		{% endfor %}
+	</div>
+	</body>
+</html>
