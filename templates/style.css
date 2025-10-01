@@ -43,6 +43,7 @@
 	--color-mark-student: cornflowerblue;
 
 	--max-width: 800px;
+	--owner-column-width: 6em;
 }
 
 /* TODO: This seems rather repetitive. */
@@ -74,12 +75,23 @@ body {
 }
 
 .row {
-	display: grid;
-	grid-template-columns: 5em     1ch minmax(10em, auto) 7ch  7ch   minmax(auto, 31ch);
-	grid-template-areas: "hostname owner-mark owner room cpu active-task";
-	grid-column-gap: 1ch;
+	/* display: grid; */
+	/* grid-template-columns: 5em     1ch minmax(10em, auto) 7ch  7ch   minmax(auto, 31ch); */
+	/* grid-template-areas: "hostname owner-mark owner room cpu active-task"; */
+	/* grid-column-gap: 1ch; */
+	/* align-items: baseline; */
+	display: flex;
 	align-items: baseline;
+	flex-direction: row;
 	font-family: monospace;
+}
+
+.row > * {
+	margin-left: 1ch;
+}
+
+.row > :first-child {
+	margin-left: 0;
 }
 
 /* TODO: Figure out what's best here. */
@@ -98,6 +110,7 @@ body {
 	padding-left: 1ch;
 	font-family: sans-serif;
 	color: var(--color-bg);
+	min-width: 5em;
 }
 
 .row .hostname.hotness-0 {
@@ -108,6 +121,7 @@ body {
 	grid-area: owner-mark;
 	font-style: italic;
 	font-weight: bold;
+	min-width: 1ch;
 }
 
 .owner-mark .mark-v { color: var(--color-mark-visitor); }
@@ -115,6 +129,9 @@ body {
 
 .row .owner {
 	grid-area: owner;
+	min-width: var(--owner-column-width);
+	width: auto;
+	flex-grow: 1;
 }
 
 .owner.reserve {
@@ -128,21 +145,37 @@ body {
 	color: var(--color-dim);
 	font-weight: lighter;
 	font-size: 0.75em;
-	align-self: center;
 	text-align: right;
 	overflow: clip;
+	text-overflow: ellipsis;
+	width: 9ch;
+}
+
+/* calc(var(--max-width) - 9ch) */
+@media only screen and (max-width: 720px) {
+	.row .room {
+		display: none;
+	}
 }
 
 .row .cpu {
 	grid-area: cpu;
 	background-color: var(--color-faint);
+	font-family: sans-serif;
+	font-variant-numeric: tabular-nums;
+	padding: 0 3px;
+	white-space: nowrap;
 }
 
 .row .cpu .used {
 	display: inline-block;
 	text-align: right;
 	width: 3ch;
-	font-weight: bold;
+}
+
+.row .cpu .total {
+	display: inline-block;
+	width: 3ch;
 }
 
 .row .cpu .total {
@@ -151,16 +184,23 @@ body {
 
 .row .active-task {
 	grid-area: active-task;
+	--width: calc(var(--owner-column-width) + 2ch + 15ch + 3ch);
+	width: var(--width);
+	min-width: var(--width);
 }
 
 .row .active-task .user {
 	display: inline-block;
 	text-align: right;
-	width: 11ch;
+	width: var(--owner-column-width);
 }
 
 .row .active-task .name {
 	font-style: italic;
+	display: inline-block;
+	max-width: 15ch;
+	overflow: clip;
+	text-overflow: ellipsis;
 }
 
 .row .active-task .cores {
