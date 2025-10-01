@@ -28,7 +28,7 @@ impl HostInfo {
 }
 
 /// The structure stored in `machine_usage.dat`
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Data {
     pub timestamp: u64,
     pub info: Box<[RichInfo]>,

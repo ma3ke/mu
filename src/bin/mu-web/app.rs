@@ -2,25 +2,31 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use mu::info::{Data, HostInfo};
+use mu::info::Data;
+use tera::Tera;
 
-pub struct App {
-    host_info: HostInfo,
+#[derive(Debug, Clone)]
+pub struct State {
     path: PathBuf,
     data: Option<Data>,
+    templates: Tera,
 }
 
-impl App {
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+impl State {
+    pub fn new<P: AsRef<std::path::Path>>(path: P, templates: Tera) -> Result<Self> {
         Ok(Self {
-            host_info: HostInfo::new()?,
             path: path.as_ref().to_path_buf(),
             data: None,
+            templates,
         })
     }
 
-    pub fn host_info(&self) -> &HostInfo {
-        &self.host_info
+    pub fn render(&self, template_name: &str) -> Result<String> {
+        let data = self.data().expect("data must have been refreshed before");
+        let data = crate::Data::from(data);
+        let context = tera::Context::from_serialize(data)?;
+        let content = self.templates.render(template_name, &context)?;
+        Ok(content)
     }
 
     /// Before reading, the data must be [refreshed](Self::refresh_data). If this is not the case,
