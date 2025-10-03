@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -18,17 +19,42 @@ pub struct App {
     host_info: HostInfo,
     path: PathBuf,
     data: Option<Data>,
+    access_logged: bool,
     #[allow(dead_code)] // TODO
     dirty: bool,
     exit: bool,
 }
 
+fn log(host_info: &HostInfo) -> Result<()> {
+    const DEFAULT_LOG_PATH: &str = "/martini/sshuser/mu/usage.log";
+    let log_path = std::env::var("MU_LOG_PATH").unwrap_or(DEFAULT_LOG_PATH.to_string());
+    let mut file = std::fs::File::options().append(true).open(&log_path)?;
+    let HostInfo {
+        hostname,
+        user,
+        os,
+        os_version,
+    } = host_info;
+    let timestamp = chrono::offset::Local::now().to_rfc3339();
+    writeln!(
+        file,
+        "{timestamp}\tfrom {user}@{hostname}\t({os} {os_version})"
+    )?;
+    eprintln!("INFO: Your access of mu is temporarily logged to {log_path:?}.");
+    eprintln!("      To disable or change the log path, set the environment variable MU_LOG_PATH.");
+    Ok(())
+}
+
 impl App {
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        let host_info = HostInfo::new()?;
+        // Here is something silly: we'll append a line to a log file when mu is used.
+        let access_logged = log(&host_info).is_ok();
         Ok(Self {
-            host_info: HostInfo::new()?,
+            host_info,
             path: path.as_ref().to_path_buf(),
             data: None,
+            access_logged,
             dirty: true,
             exit: false,
         })
@@ -186,9 +212,17 @@ impl Widget for &App {
         let notes_block = Block::bordered()
             .title("Notes")
             .fg(Color::from_str("#70abaf").unwrap());
-        let notes = Paragraph::new(format!("Last update:\n  {age}."))
-            .wrap(Wrap { trim: false })
-            .block(notes_block);
+        let notes = Paragraph::new(vec![
+            Line::from("Last update:"),
+            Line::from(format!("  {age}.")),
+            Line::from(if self.access_logged {
+                "Logged :)"
+            } else {
+                "Not logged."
+            }),
+        ])
+        .wrap(Wrap { trim: false })
+        .block(notes_block);
 
         let vertical_layout = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
         let header_layout = Layout::horizontal([
@@ -198,7 +232,7 @@ impl Widget for &App {
         let main_layout = Layout::horizontal([Constraint::Fill(1), Constraint::Length(18)]);
         let gutter_layout = Layout::vertical([
             Constraint::Max(stats_height),
-            Constraint::Max(4),
+            Constraint::Max(5),
             Constraint::Fill(1),
         ]);
         let [header_area, main_area] = vertical_layout.areas(area);
