@@ -68,8 +68,6 @@ impl App {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        // Clear the frame before rendering to be more compatible with tty.
-        frame.render_widget(ratatui::widgets::Clear, frame.area());
         frame.render_widget(self, frame.area());
     }
 
