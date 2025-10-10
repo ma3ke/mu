@@ -149,6 +149,10 @@ impl Widget for &App {
             Span::from(format!(" {os} {os_version}")).dim(),
         ])
         .left_aligned();
+        let time = Span::from(chrono::Local::now().format("%H:%M").to_string())
+            .into_centered_line()
+            .bold()
+            .dark_gray();
         let header_info_width = header_info.width();
         let gauge = LineGauge::default()
             .line_set(symbols::line::THICK)
@@ -157,16 +161,8 @@ impl Widget for &App {
             .ratio(total_usage)
             .block(Block::new());
 
-        let header = Paragraph::new(header_info).wrap(Wrap { trim: true });
-        let machines_rows: Vec<Row> = machines
-            .into_iter()
-            .enumerate()
-            .map(|(i, m)| {
-                let r: Row = m.into();
-                // TODO: Pick something here.
-                if i % 2 == 0 { r } else { r }
-            })
-            .collect();
+        let info = Paragraph::new(header_info).wrap(Wrap { trim: true });
+        let machines_rows: Vec<Row> = machines.into_iter().map(Into::into).collect();
         let machines = Table::new(
             machines_rows,
             [
@@ -226,8 +222,9 @@ impl Widget for &App {
 
         let vertical_layout = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
         let header_layout = Layout::horizontal([
-            Constraint::Min(header_info_width as u16 + 1),
-            Constraint::Max(50),
+            Constraint::Min(header_info_width as u16 + 1), // info
+            Constraint::Min(5),                            // time
+            Constraint::Max(40),                           // gauge
         ]);
         let main_layout = Layout::horizontal([Constraint::Fill(1), Constraint::Length(18)]);
         let gutter_layout = Layout::vertical([
@@ -236,11 +233,12 @@ impl Widget for &App {
             Constraint::Fill(1),
         ]);
         let [header_area, main_area] = vertical_layout.areas(area);
-        let [title_area, gauge_area] = header_layout.areas(header_area);
+        let [info_area, time_area, gauge_area] = header_layout.areas(header_area);
         let [table_area, gutter_area] = main_layout.areas(main_area);
         let [stats_area, notes_area, _rest_area] = gutter_layout.areas(gutter_area);
 
-        header.render(title_area, buf);
+        info.render(info_area, buf);
+        time.render(time_area, buf);
         gauge.render(gauge_area, buf);
         machines.render(table_area, buf);
         stats.render(stats_area, buf);
