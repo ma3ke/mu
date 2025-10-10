@@ -1,17 +1,10 @@
-use std::{collections::HashMap, str::FromStr};
-
-use mu::info::PROCESS_USAGE_THRESHOLD_PERCENT;
+use std::str::FromStr;
 
 use crate::{ActiveUser, CpuUsage, Machine, Owner};
 
 pub trait DataView {
     /// Return a sorted list of [`Machine`]s.
     fn machines(&self) -> Box<[Machine]>;
-    fn total_usage(&self) -> f64;
-    /// Return a list of tuples with the username and its associated number of threads across
-    /// machines.
-    fn tpu(&self) -> Vec<(&String, usize)>;
-    fn cpu_count(&self) -> u32;
 }
 
 impl DataView for mu::info::Data {
@@ -79,44 +72,5 @@ impl DataView for mu::info::Data {
 
         ms.sort_by_cached_key(|m| m.hostname.clone());
         ms.into_boxed_slice()
-    }
-
-    fn total_usage(&self) -> f64 {
-        let info = &self.info;
-        let total_cores_used: f64 = info
-            .iter()
-            .map(|entry| entry.info.cpus.iter().sum::<f32>() as f64)
-            .sum();
-        let total_cores: f64 = info
-            .iter()
-            .map(|entry| entry.info.cpus.len() as f64 * 100.0)
-            .sum();
-        total_cores_used / total_cores
-    }
-
-    /// Return a list of tuples with the username and its associated number of threads across
-    /// machines.
-    fn tpu(&self) -> Vec<(&String, usize)> {
-        // TODO: Also rewrite this this sucks.
-        let mut tpu = HashMap::<_, usize>::new();
-        for entry in &self.info {
-            for (user, cu) in &entry.info.usage {
-                // TODO: I think this is a cursed way of counting total usage.
-                *tpu.entry(user).or_default() += cu.len();
-            }
-        }
-
-        let mut tpu: Vec<(&String, usize)> = tpu.into_iter().collect();
-        // We sort by the number of threads, followed by the name to deteministically break ties.
-        tpu.sort_by_key(|(name, tasks_sum)| (*tasks_sum, *name));
-        tpu
-    }
-
-    fn cpu_count(&self) -> u32 {
-        let mut cpu_count = 0;
-        for entry in &self.info {
-            cpu_count += entry.info.cpus.len();
-        }
-        cpu_count as u32
     }
 }
