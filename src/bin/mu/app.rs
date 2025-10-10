@@ -40,8 +40,6 @@ fn log(host_info: &HostInfo) -> Result<()> {
         file,
         "{timestamp}\tfrom {user}@{hostname}\t({os} {os_version})"
     )?;
-    eprintln!("INFO: Your access of mu is temporarily logged to {log_path:?}.");
-    eprintln!("      To disable or change the log path, set the environment variable MU_LOG_PATH.");
     Ok(())
 }
 
