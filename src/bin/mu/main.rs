@@ -66,19 +66,11 @@ struct ActiveUser {
 
 impl<'a> Into<Row<'a>> for Machine {
     fn into(self) -> Row<'a> {
-        let Self {
-            hostname,
-            owner,
-            room,
-
-            cpu_usage: CpuUsage { used, total },
-            load_avg,
-            active_user,
-        } = self;
+        let CpuUsage { used, total } = self.cpu_usage;
 
         let hostname = {
-            let text = Span::from(hostname);
-            let t = load_avg.five / total as f64;
+            let text = Span::from(self.hostname);
+            let t = self.load_avg.five / total as f64;
             // TODO: Make a const from this?
             let gradient = [
                 Color::from_str("#b0cd75").unwrap(),
@@ -105,7 +97,7 @@ impl<'a> Into<Row<'a>> for Machine {
         };
         // TODO: Add an owner.name() -> Option<String> thing.
         // We want to know whether the main active user of a machine is also its owner.
-        let uses_own = match (&owner, &active_user) {
+        let uses_own = match (&self.owner, &self.active_user) {
             (Owner::Member(name) | Owner::Visitor(name) | Owner::Student(name), Some(au))
                 if *name == au.user =>
             {
@@ -115,7 +107,7 @@ impl<'a> Into<Row<'a>> for Machine {
         };
         // We also want to know whether a student or visitor's machine is most actively used by
         // somebody else.
-        let other_user = match (&owner, &active_user) {
+        let other_user = match (&self.owner, &self.active_user) {
             (Owner::Member(name) | Owner::Visitor(name) | Owner::Student(name), Some(au))
                 if *name != au.user =>
             {
@@ -124,7 +116,7 @@ impl<'a> Into<Row<'a>> for Machine {
             _ => Modifier::empty(),
         };
         let owner_name_style = Style::new().bold().add_modifier(uses_own);
-        let owner = match owner {
+        let owner = match self.owner {
             Owner::Member(name) => Cell::from(Line::from(vec![
                 Span::raw("  "),
                 Span::raw(name).style(owner_name_style),
@@ -154,7 +146,7 @@ impl<'a> Into<Row<'a>> for Machine {
             let bg = Color::from_str("#999999").unwrap();
             let bright = Color::from_str("#eeeeee").unwrap();
             let dim = Color::from_str("#cccccc").unwrap();
-            let u = load_avg.one.round() as u32;
+            let u = self.load_avg.one.round() as u32;
             Cell::from(Line::from(vec![
                 // Span::raw(format!("{used:>3}")).fg(bright).bold(),
                 Span::raw(format!("{u:>3}")).fg(bright).bold(),
@@ -163,7 +155,7 @@ impl<'a> Into<Row<'a>> for Machine {
             ]))
             .bg(bg)
         };
-        let active_user = if let Some(ActiveUser { user, cores, task }) = active_user {
+        let active_user = if let Some(ActiveUser { user, cores, task }) = self.active_user {
             let mut line = Line::from(vec![
                 Span::raw(format!("{user:>8}")).bold().gray(),
                 Span::raw(":").dim(),
@@ -183,7 +175,7 @@ impl<'a> Into<Row<'a>> for Machine {
         Row::new(vec![
             hostname,
             owner,
-            Cell::from(Text::from(room).right_aligned()).dim(),
+            Cell::from(Text::from(self.room).right_aligned()).dim(),
             cpu,
             active_user,
         ])
