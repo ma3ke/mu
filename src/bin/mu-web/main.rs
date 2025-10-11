@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use actix_web::{HttpResponse, HttpServer, Responder, get, web};
 use anyhow::Result;
-use mu::info::LoadAvg;
+use mu::model::LoadAvg;
 use serde::Serialize;
 use tera::Tera;
 

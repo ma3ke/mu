@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use mu::info::Data;
+use mu::model::Data;
 use tera::Tera;
 
 #[derive(Debug, Clone)]
@@ -14,11 +14,7 @@ pub struct State {
 
 impl State {
     pub fn new<P: AsRef<std::path::Path>>(path: P, templates: Tera) -> Result<Self> {
-        Ok(Self {
-            path: path.as_ref().to_path_buf(),
-            data: None,
-            templates,
-        })
+        Ok(Self { path: path.as_ref().to_path_buf(), data: None, templates })
     }
 
     pub fn render(&self, template_name: &str) -> Result<String> {

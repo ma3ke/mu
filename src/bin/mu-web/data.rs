@@ -7,7 +7,7 @@ pub trait DataView {
     fn machines(&self) -> Box<[Machine]>;
 }
 
-impl DataView for mu::info::Data {
+impl DataView for mu::model::Data {
     // pub fn info(&self) -> &[InfoEntry] {
     //     &self.0.info
     // }

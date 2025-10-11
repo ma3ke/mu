@@ -4,10 +4,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use mu::info::{Data, RichInfo};
+use mu::model::{ClusterData, ClusterUsage, MachineUsage};
 use openssh::{KnownHosts, Session};
-
-use crate::config::{Machine, MachinesConfig};
 
 mod config;
 
@@ -43,10 +41,10 @@ struct Args {
 }
 
 pub async fn gather(
-    machine: Machine,
+    machine: config::MachineDefinition,
     bee_path: &str,
     bee_log_dir: Option<PathBuf>,
-) -> Result<RichInfo> {
+) -> Result<MachineUsage> {
     // TODO: Find out from openssh crate docs whether we want 'process-based' or 'mux-based' thing idk.
     let session = Session::connect(&machine.hostname, KnownHosts::Strict).await?;
     // TODO: See if it's possible to more directly stream the information to our deserializer.
@@ -64,15 +62,15 @@ pub async fn gather(
         serde_json::from_slice(&bee.stdout).context("could not deserialize output from bee")?;
     eprintln!("INFO: ({hn}) Deserialized info.");
     eprintln!("INFO: ({hn}) Done.");
-    Ok(RichInfo::new(info, machine.room, machine.note))
+    Ok(MachineUsage { definition: machine.into(), usage: info })
 }
 
 pub async fn peruse(
-    machines_config: MachinesConfig,
+    machines_config: config::MachineDefinitions,
     bee_path: &str,
     bee_log_dir: Option<PathBuf>,
-) -> Result<Box<[RichInfo]>> {
-    let tasks: Vec<_> = machines_config
+) -> Result<ClusterUsage> {
+    let tasks = machines_config
         .into_iter()
         .cloned()
         .map(|machine| {
@@ -86,12 +84,12 @@ pub async fn peruse(
                     .context(format!("problem while gathering usage from {hostname:?}"))
             })
         })
-        .collect();
+        .collect::<Vec<_>>();
 
-    let mut output_usage = Vec::new();
+    let mut usage = Vec::new();
     for task in tasks {
         match task.await? {
-            Ok(rich_info) => output_usage.push(rich_info),
+            Ok(rich_info) => usage.push(rich_info),
             Err(e) => {
                 let root_cause = e.root_cause();
                 eprintln!("WARNING: {e}");
@@ -100,10 +98,12 @@ pub async fn peruse(
         };
     }
 
-    let nsuccess = output_usage.len();
+    let nsuccess = usage.len();
     let n = machines_config.len();
     eprintln!("INFO: All machines have been perused. ({nsuccess}/{n} success)");
-    Ok(output_usage.into_boxed_slice())
+
+    // TODO: Create a from or something here. That'd be nicer.
+    Ok(ClusterUsage::new(usage.into_boxed_slice()))
 }
 
 fn main() -> Result<()> {
@@ -111,21 +111,20 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let machines_path = &args.machines;
-    let machines_config = MachinesConfig::read_from_config(machines_path)
+    let machines_config = config::MachineDefinitions::read_from_config(machines_path)
         .context(format!("could not process machines file {machines_path:?}"))?;
 
     let runtime = tokio::runtime::Runtime::new().context("could not set up async runtime")?;
-    let info =
+    let usage =
         runtime.block_on(async { peruse(machines_config, &args.bee, args.bee_log).await })?;
 
-    let data = Data::new(info);
+    let data = ClusterData::new(usage);
 
     let output_path = &args.output;
     // We first serialize into memory before writing the file, rather than writing to the file
     // directly, to limit the time that the file is in an invalid state.
-    let output = serde_json::to_string_pretty(&data).context(format!(
-        "could not write collected usage to output file {output_path:?}"
-    ))?;
+    let output = serde_json::to_string_pretty(&data)
+        .context(format!("could not write collected usage to output file {output_path:?}"))?;
     let mut output_file = std::fs::File::create(output_path)
         .context(format!("could not open output file {output_path:?}"))?;
     output_file.write_all(output.as_bytes())?;

@@ -1,12 +1,13 @@
-use std::{io::Read, path::Path};
+use std::{io::Read, path::Path, str::FromStr};
 
 use anyhow::{Context, Result};
+use mu::model::Owner;
 
 #[derive(Debug, Clone)]
-pub struct MachinesConfig(Box<[Machine]>);
+pub struct MachineDefinitions(Box<[MachineDefinition]>);
 
 #[derive(Debug, Clone)]
-pub struct Machine {
+pub struct MachineDefinition {
     pub room: String,
     pub hostname: String,
     /// Note or name of owner.
@@ -15,22 +16,30 @@ pub struct Machine {
     pub note: Option<String>,
 }
 
-impl std::ops::Deref for MachinesConfig {
-    type Target = [Machine];
+impl From<MachineDefinition> for mu::model::MachineDefinition {
+    fn from(definition: MachineDefinition) -> Self {
+        let MachineDefinition { room, hostname, note } = definition;
+        let owner = note.map(|note| Owner::from_str(&note).unwrap()).unwrap_or_default();
+        Self { hostname, owner, room }
+    }
+}
+
+impl std::ops::Deref for MachineDefinitions {
+    type Target = [MachineDefinition];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl MachinesConfig {
+impl MachineDefinitions {
     /// Opens, reads, and parses a `.ini` file describing the machines configuration.
     ///
     /// Machines are grouped by their rooms, specified by headers.
     /// Under each header, the machines that belong to that room are listed.
     /// Each machine listing starts with the machine hostname, a colon, a space, and finally the
     /// name or note describing who that machine belongs to.
-    pub fn read_from_config(path: impl AsRef<Path>) -> Result<MachinesConfig> {
+    pub fn read_from_config(path: impl AsRef<Path>) -> Result<MachineDefinitions> {
         let path = path.as_ref();
         let mut s = String::new();
         std::fs::File::open(path)
@@ -76,11 +85,7 @@ impl MachinesConfig {
                     "" => None,
                     note => Some(note.to_string()),
                 };
-                let machine = Machine {
-                    room,
-                    hostname,
-                    note,
-                };
+                let machine = MachineDefinition { room, hostname, note };
                 machines_config.push(machine);
             }
         }
