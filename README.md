@@ -1,4 +1,4 @@
-# _mu_&emdash;show lab cluster usage
+# _mu_&mdash;show lab cluster usage
 
 View and gather machine usage for our lab cluster.
 
