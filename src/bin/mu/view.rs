@@ -14,12 +14,21 @@ pub struct ClusterDataView {
 
 impl ClusterDataView {
     // TODO: Remove the logged thing.
-    pub fn new(hostinfo: HostInfo, data: &ClusterData, logged: bool, success: bool) -> Self {
+    pub fn new(
+        hostinfo: HostInfo,
+        data: &ClusterData,
+        logged: bool,
+        success: bool,
+        show_room: bool,
+    ) -> Self {
         let header = HeaderView::new(hostinfo, &data.usage);
         let stats = StatsView::new(&data.usage);
         let notes = NotesView::new(&data, logged, success);
-        let mut machines =
-            data.usage.iter().map(|machine| MachineView::new(machine)).collect::<Box<[_]>>();
+        let mut machines = data
+            .usage
+            .iter()
+            .map(|machine| MachineView::new(machine, show_room))
+            .collect::<Box<[_]>>();
         machines.sort_by_key(|machine| machine.hostname.clone());
         Self { header, stats, notes, machines }
     }
@@ -104,10 +113,11 @@ pub struct MachineView {
     pub cpu_usage: CpuUsage,
     pub load_avg: LoadAvg,
     pub active_user: Option<ActiveUser>,
+    pub show_room: bool,
 }
 
 impl MachineView {
-    pub fn new(machine: &MachineUsage) -> Self {
+    pub fn new(machine: &MachineUsage, show_room: bool) -> Self {
         // TODO: Consider doing the whole lifetime thing here.
         let MachineDefinition { hostname, owner, room } = machine.definition.clone();
         let Usage { global_cpu_usage: _, cpus, load_avg, mem: _, processes } =
@@ -129,6 +139,6 @@ impl MachineView {
                     .map(|cu| cu.name.to_string())
                     .unwrap_or("?".to_string()),
             });
-        Self { hostname, owner, room, cpu_usage, load_avg, active_user }
+        Self { hostname, owner, room, cpu_usage, load_avg, active_user, show_room }
     }
 }

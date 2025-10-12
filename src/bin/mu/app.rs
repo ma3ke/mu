@@ -21,6 +21,7 @@ pub struct App {
     access_logged: bool,
     /// Report if the data was refreshed successfully.
     success: bool,
+    show_room: bool,
     #[allow(dead_code)] // TODO
     dirty: bool,
     exit: bool,
@@ -47,6 +48,7 @@ impl App {
             data: None,
             access_logged,
             success: false,
+            show_room: false,
             dirty: true,
             exit: false,
         })
@@ -115,6 +117,7 @@ impl App {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('j') | KeyCode::Down => {}
             KeyCode::Char('k') | KeyCode::Up => {}
+            KeyCode::Char('R') => self.show_room = !self.show_room,
             _ => {}
         }
     }
@@ -126,7 +129,13 @@ impl App {
     fn view(&self) -> ClusterDataView {
         let data = self.data().expect("data must be refreshed before it is read");
         // TODO: This clone could be elided in the future maybe?
-        ClusterDataView::new(self.host_info.clone(), data, self.access_logged, self.success)
+        ClusterDataView::new(
+            self.host_info.clone(),
+            data,
+            self.access_logged,
+            self.success,
+            self.show_room,
+        )
     }
 }
 
@@ -161,11 +170,11 @@ impl Widget for &App {
         let machines = Table::new(
             machines_rows,
             [
-                Constraint::Max(6),
-                Constraint::Max(23),
-                Constraint::Max(9),
-                Constraint::Length(7),
-                Constraint::Max(30),
+                Constraint::Max(6),  // Hostname.
+                Constraint::Max(23), // Note (owner).
+                if self.show_room { Constraint::Max(9) } else { Constraint::Length(0) }, // Room.
+                Constraint::Length(7), // Cores.
+                Constraint::Max(30), // Active user.
             ],
         )
         .block(Block::new());
@@ -327,7 +336,11 @@ impl<'a> IntoRow<'a> for MachineView {
         Row::new(vec![
             hostname,
             owner,
-            Cell::from(Text::from(self.room).right_aligned()).dim(),
+            if self.show_room {
+                Cell::from(Text::from(self.room).right_aligned()).dim()
+            } else {
+                Cell::default() // Empty.
+            },
             cpu,
             active_user,
         ])
