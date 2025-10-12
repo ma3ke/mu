@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
@@ -115,6 +115,9 @@ impl App {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
+            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.exit()
+            }
             KeyCode::Char('j') | KeyCode::Down => {}
             KeyCode::Char('k') | KeyCode::Up => {}
             KeyCode::Char('R') => self.show_room = !self.show_room,
