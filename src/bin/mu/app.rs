@@ -19,6 +19,8 @@ pub struct App {
     path: PathBuf,
     data: Option<ClusterData>,
     access_logged: bool,
+    /// Report if the data was refreshed successfully.
+    success: bool,
     #[allow(dead_code)] // TODO
     dirty: bool,
     exit: bool,
@@ -44,6 +46,7 @@ impl App {
             path: path.as_ref().to_path_buf(),
             data: None,
             access_logged,
+            success: false,
             dirty: true,
             exit: false,
         })
@@ -60,6 +63,8 @@ impl App {
     }
 
     pub fn refresh_data(&mut self) -> Result<&ClusterData> {
+        // Reset the success flag.
+        self.success = false;
         let data_path = &self.path;
         // TODO: Perhaps we can use a thread_local to re-use the allocation?
 
@@ -70,12 +75,17 @@ impl App {
         ))?;
         let data = serde_json::from_slice(&file)?;
         self.data = Some(data);
+        // Report the success.
+        self.success = true;
         Ok(self.data().unwrap())
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        // We load the data a first time return an error if it is not successful.
+        self.refresh_data()?;
         while !self.exit {
-            self.refresh_data()?; // TODO: Cursed because we shouldn't update every frame.
+            // In case subsequent refreshing is not successful, we just wait a bit longer.
+            let _ = self.refresh_data();
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -116,7 +126,7 @@ impl App {
     fn view(&self) -> ClusterDataView {
         let data = self.data().expect("data must be refreshed before it is read");
         // TODO: This clone could be elided in the future maybe?
-        ClusterDataView::new(self.host_info.clone(), data, self.access_logged)
+        ClusterDataView::new(self.host_info.clone(), data, self.access_logged, self.success)
     }
 }
 
@@ -185,7 +195,8 @@ impl Widget for &App {
         let notes = Paragraph::new(vec![
             Line::from("Last update:"),
             Line::from(format!("  {age}.")),
-            Line::from(if view.notes.logged { "Logged :)" } else { "Not logged." }),
+            Line::from(if view.notes.success { ":)" } else { ":(" }),
+            Line::from(if view.notes.logged { "Logged." } else { "Not logged." }),
         ])
         .wrap(Wrap { trim: false })
         .block(notes_block);
@@ -199,7 +210,7 @@ impl Widget for &App {
         let main_layout = Layout::horizontal([Constraint::Fill(1), Constraint::Length(18)]);
         let gutter_layout = Layout::vertical([
             Constraint::Max(stats_height),
-            Constraint::Max(5),
+            Constraint::Max(6),
             Constraint::Fill(1),
         ]);
         let [header_area, main_area] = vertical_layout.areas(area);
@@ -293,7 +304,6 @@ impl<'a> IntoRow<'a> for MachineView {
             let dim = Color::from_str("#cccccc").unwrap();
             let u = self.load_avg.one.round() as u32;
             Cell::from(Line::from(vec![
-                // Span::raw(format!("{used:>3}")).fg(bright).bold(),
                 Span::raw(format!("{u:>3}")).fg(bright).bold(),
                 Span::raw("/").dim().fg(dim),
                 Span::raw(format!("{total:<3}")).fg(dim).bold(),

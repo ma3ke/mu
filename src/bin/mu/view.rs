@@ -14,10 +14,10 @@ pub struct ClusterDataView {
 
 impl ClusterDataView {
     // TODO: Remove the logged thing.
-    pub fn new(hostinfo: HostInfo, data: &ClusterData, logged: bool) -> Self {
+    pub fn new(hostinfo: HostInfo, data: &ClusterData, logged: bool, success: bool) -> Self {
         let header = HeaderView::new(hostinfo, &data.usage);
         let stats = StatsView::new(&data.usage);
-        let notes = NotesView::new(&data, logged);
+        let notes = NotesView::new(&data, logged, success);
         let mut machines =
             data.usage.iter().map(|machine| MachineView::new(machine)).collect::<Box<[_]>>();
         machines.sort_by_key(|machine| machine.hostname.clone());
@@ -88,11 +88,12 @@ impl StatsView {
 pub struct NotesView {
     pub last_update: std::time::SystemTime,
     pub logged: bool,
+    pub success: bool,
 }
 
 impl NotesView {
-    fn new(data: &ClusterData, logged: bool) -> Self {
-        Self { last_update: data.time(), logged }
+    fn new(data: &ClusterData, logged: bool, success: bool) -> Self {
+        Self { last_update: data.time(), logged, success }
     }
 }
 
