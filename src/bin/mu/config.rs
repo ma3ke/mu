@@ -29,6 +29,7 @@ pub struct Colors {
     pub clock: Color,
     pub gauge: Color,
     // Table.
+    pub legend: Color,
     pub hotness_gradient: Box<[Color]>,
     pub student: Color,
     pub visitor: Color,
@@ -80,6 +81,7 @@ impl Default for Colors {
             os: Color::DarkGray,
             clock: Color::DarkGray,
             gauge: Color::Red,
+            legend: Color::DarkGray,
             hotness_gradient,
             student: Color::LightCyan,
             visitor: Color::LightMagenta,
@@ -233,6 +235,7 @@ mod parse {
             "clock" => colors.clock = color?,
             "gauge" => colors.gauge = color?,
             "student" => colors.student = color?,
+            "legend" => colors.legend = color?,
             "visitor" => colors.visitor = color?,
             "reservation" => colors.reservation = color?,
             "owner" => colors.owner = color?,
