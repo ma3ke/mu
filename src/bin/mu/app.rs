@@ -1,20 +1,21 @@
 use std::io::Write;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::{Buffer, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Cell, LineGauge, Paragraph, Row, Table, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame, symbols};
 
+use crate::config::{Colors, Config};
 use crate::view::{ClusterDataView, MachineView};
 use mu::model::{ActiveUser, ClusterData, CpuUsage, HostInfo, Owner};
 
 pub struct App {
+    colors: Colors,
     host_info: HostInfo,
     path: PathBuf,
     data: Option<ClusterData>,
@@ -38,17 +39,18 @@ fn log(host_info: &HostInfo) -> Result<()> {
 }
 
 impl App {
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+    pub fn new(config: Config) -> Result<Self> {
         let host_info = HostInfo::new()?;
         // Here is something silly: we'll append a line to a log file when mu is used.
         let access_logged = log(&host_info).is_ok();
         Ok(Self {
+            colors: config.colors,
             host_info,
-            path: path.as_ref().to_path_buf(),
+            path: config.data_path,
             data: None,
             access_logged,
             success: false,
-            show_room: false,
+            show_room: config.show_room,
             dirty: true,
             exit: false,
         })
@@ -145,31 +147,33 @@ impl App {
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let view = self.view();
+        let colors = &self.colors;
 
         let header_info = {
             let HostInfo { hostname, user, os, os_version } = view.header.hostinfo;
             Line::from(vec![
-                Span::from(user).bold(),
-                Span::from(" @ ").dim(),
-                Span::from(hostname).bold().italic().gray(),
-                Span::from(format!(" {os} {os_version}")).dim(),
+                Span::from(user).bold().fg(colors.user),
+                Span::from(" @ ").fg(colors.divider),
+                Span::from(hostname).bold().italic().fg(colors.hostname),
+                Span::from(format!(" {os} {os_version}")).fg(colors.os),
             ])
             .left_aligned()
         };
         let time = Span::from(chrono::Local::now().format("%H:%M").to_string())
             .into_centered_line()
             .bold()
-            .dark_gray();
+            .fg(colors.clock);
         let header_info_width = header_info.width();
         let gauge = LineGauge::default()
             .line_set(symbols::line::THICK)
-            .filled_style(Style::new().red())
+            .filled_style(Style::new().fg(colors.gauge))
             .unfilled_style(Style::new().dim())
             .ratio(view.header.total_usage.into())
             .block(Block::new());
 
         let info = Paragraph::new(header_info).wrap(Wrap { trim: true });
-        let machines_rows: Vec<Row> = view.machines.into_iter().map(IntoRow::into_row).collect();
+        let machines_rows: Vec<Row> =
+            view.machines.into_iter().map(|machine| IntoRow::into_row(machine, colors)).collect();
         let machines = Table::new(
             machines_rows,
             [
@@ -187,12 +191,15 @@ impl Widget for &App {
             .iter()
             .map(|(user, usage_percent)| {
                 Row::new(vec![
-                    Cell::from(Span::from(format!("{usage_percent:>3.0}%"))).italic().dim(),
+                    Cell::from(Span::from(format!("{usage_percent:>3.0}%")))
+                        .italic()
+                        .fg(colors.stats)
+                        .dim(),
                     Cell::from(Span::from(user)).bold(),
                 ])
             })
             .collect::<Vec<_>>();
-        let stats_block = Block::bordered().title("User ranking").yellow();
+        let stats_block = Block::bordered().title("User ranking").fg(colors.stats);
         let stats_height = stats_rows.len() as u16 + 2;
         let stats =
             Table::new(stats_rows, [Constraint::Length(4), Constraint::Min(8)]).block(stats_block);
@@ -203,7 +210,7 @@ impl Widget for &App {
             // This would be very weird but it's cool to handle it in a funny way :)
             Err(error) => format!("{:.3} s in the future", error.duration().as_secs_f32()),
         };
-        let notes_block = Block::bordered().title("Notes").fg(Color::from_str("#70abaf").unwrap());
+        let notes_block = Block::bordered().title("Notes").fg(colors.notes);
         let notes = Paragraph::new(vec![
             Line::from("Last update:"),
             Line::from(format!("  {age}.")),
@@ -240,35 +247,19 @@ impl Widget for &App {
 }
 
 trait IntoRow<'a> {
-    fn into_row(self) -> Row<'a>;
+    fn into_row(self, colors: &Colors) -> Row<'a>;
 }
 
 impl<'a> IntoRow<'a> for MachineView {
-    fn into_row(self) -> Row<'a> {
+    fn into_row(self, colors: &Colors) -> Row<'a> {
         let CpuUsage { used, total } = self.cpu_usage;
 
         let hostname = {
             let text = Span::from(self.hostname);
-            let load = self.load_avg.five / total as f64;
-            // TODO: Make a const from this?
-            let gradient = [
-                Color::from_str("#b0cd75").unwrap(),
-                Color::from_str("#c0cc6c").unwrap(),
-                Color::from_str("#cfcb63").unwrap(),
-                Color::from_str("#d9cf69").unwrap(),
-                Color::from_str("#e3d26f").unwrap(),
-                Color::from_str("#d7ae67").unwrap(),
-                Color::from_str("#ca895f").unwrap(),
-                Color::from_str("#c56355").unwrap(),
-                Color::from_str("#bf3d4a").unwrap(),
-                Color::from_str("#c41829").unwrap(),
-            ];
-            let idx = ((load * gradient.len().saturating_sub(1) as f64) as usize)
-                .clamp(0, gradient.len() - 1);
-            let color = gradient[idx];
-
             let modifier =
                 if used == total { Modifier::BOLD | Modifier::ITALIC } else { Modifier::empty() };
+            let load = self.load_avg.five / total as f64;
+            let color = colors.pick_gradient_color(load);
             Cell::from(text.fg(color).add_modifier(modifier))
         };
         // TODO: Add an owner.name() -> Option<String> thing.
@@ -295,41 +286,43 @@ impl<'a> IntoRow<'a> for MachineView {
         let owner = match self.owner {
             Owner::Member(name) => Cell::from(Line::from(vec![
                 Span::raw("  "),
-                Span::raw(name).style(owner_name_style),
+                Span::raw(name).style(owner_name_style).fg(colors.owner),
             ])),
             Owner::Visitor(name) => Cell::from(Line::from(vec![
-                Span::raw("v").italic().light_cyan().dim().add_modifier(other_user),
+                Span::raw("v").italic().fg(colors.visitor).add_modifier(other_user),
                 Span::raw(" "),
-                Span::raw(name).style(owner_name_style),
+                Span::raw(name).style(owner_name_style).fg(colors.owner),
             ])),
             Owner::Student(name) => Cell::from(Line::from(vec![
-                Span::raw("s").italic().light_magenta().dim().add_modifier(other_user),
+                Span::raw("s").italic().fg(colors.student).add_modifier(other_user),
                 Span::raw(" "),
-                Span::raw(name).style(owner_name_style),
+                Span::raw(name).style(owner_name_style).fg(colors.owner),
             ])),
-            Owner::Reserve => Cell::from(Span::raw("Reservation required").italic().gray()),
+            Owner::Reserve => {
+                Cell::from(Span::raw("Reservation required").italic().fg(colors.reservation))
+            }
             Owner::None => Cell::default(),
         };
         let cpu = {
-            let bg = Color::from_str("#999999").unwrap();
-            let bright = Color::from_str("#eeeeee").unwrap();
-            let dim = Color::from_str("#cccccc").unwrap();
             let u = self.load_avg.one.round() as u32;
             Cell::from(Line::from(vec![
-                Span::raw(format!("{u:>3}")).fg(bright).bold(),
-                Span::raw("/").dim().fg(dim),
-                Span::raw(format!("{total:<3}")).fg(dim).bold(),
+                Span::raw(format!("{u:>3}")).fg(colors.cores_active).bold(),
+                Span::raw("/").fg(colors.cores_divider),
+                Span::raw(format!("{total:<3}")).fg(colors.cores_total).bold(),
             ]))
-            .bg(bg)
+            .bg(colors.cores_bg)
         };
         let active_user = if let Some(ActiveUser { user, cores, task }) = self.active_user {
             let mut line = Line::from(vec![
-                Span::raw(format!("{user:>8}")).bold().gray(),
-                Span::raw(":").dim(),
-                Span::raw(task).italic(),
+                Span::raw(format!("{user:>8}")).bold().fg(colors.active_user),
+                Span::raw(":").fg(colors.divider).dim(),
+                Span::raw(task).italic().fg(colors.active_task),
             ]);
             if cores > 1 {
-                line.extend([Span::raw("@").dim(), Span::raw(cores.to_string()).bold().gray()]);
+                line.extend([
+                    Span::raw("@").fg(colors.divider).dim(),
+                    Span::raw(cores.to_string()).bold().fg(colors.active_cores),
+                ]);
             }
             Cell::from(line)
         } else {
@@ -340,7 +333,7 @@ impl<'a> IntoRow<'a> for MachineView {
             hostname,
             owner,
             if self.show_room {
-                Cell::from(Text::from(self.room).right_aligned()).dim()
+                Cell::from(Text::from(self.room).right_aligned()).fg(colors.room)
             } else {
                 Cell::default() // Empty.
             },

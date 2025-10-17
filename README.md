@@ -39,6 +39,24 @@ the user by different means or with a different approach. For example, it may
 be cool to play around with creating a web-view of the same information in
 `mu.dat`.
 
+```
+Usage: mu [OPTIONS]
+
+Options:
+      --config <CONFIG_PATH>
+          Path to the configuration file
+          
+          [default: ~/.config/mu/mu.conf]
+
+      --data <DATA_PATH>
+          Path to the `mu.dat` file.
+          
+          This will overwrite the default data path or the data path set in the configuration file.
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
 ## Execution of `mu-hive`
 
 Some details regarding the execution of `mu-hive` may be important to know.
