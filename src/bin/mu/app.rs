@@ -172,8 +172,12 @@ impl Widget for &App {
             .block(Block::new());
 
         let info = Paragraph::new(header_info).wrap(Wrap { trim: true });
-        let machines_rows: Vec<Row> =
-            view.machines.into_iter().map(|machine| IntoRow::into_row(machine, colors)).collect();
+        let legend_row =
+            Row::new(["", "", "Room", "CPU", "Mem", "Active process"].map(Cell::from)).dim();
+        let machines_rows: Vec<Row> = std::iter::once(legend_row)
+            .chain(view.machines.into_iter().map(|machine| IntoRow::into_row(machine, colors)))
+            .collect();
+
         let machines = Table::new(
             machines_rows,
             [
