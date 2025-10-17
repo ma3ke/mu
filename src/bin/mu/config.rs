@@ -104,7 +104,7 @@ mod parse {
 
     use anyhow::{Context, Result, bail};
 
-    use crate::config::{Color, Colors, Config};
+    use crate::config::{Color, Config};
 
     impl Config {
         /// Opens, reads, and parses a `.ini` file describing the machines configuration.
@@ -133,8 +133,12 @@ mod parse {
                     // A header is surrounded by brackets.
                     let header = header.trim(); // "Tighten up those lines!"
                     match header {
-                        "general" => parse_general(&mut lines, &mut config),
-                        "colors" => parse_colors(&mut lines, &mut config.colors),
+                        "general" => {
+                            parse_section(&mut lines, &mut config, parse_general_declaration)
+                        }
+                        "colors" => {
+                            parse_section(&mut lines, &mut config, parse_colors_declaration)
+                        }
                         unknown => {
                             bail!("encountered an unknown config header on line {ln}: {unknown:?}")
                         }
@@ -149,129 +153,134 @@ mod parse {
         }
     }
 
-    /// A helper function for formatting parsing errors.
-    fn f(ln: usize, value: &str, expected: &str) -> String {
-        format!("could not parse {value:?} as {expected} on line {ln}")
+    fn parse_section<'a, I>(
+        lines: &mut std::iter::Peekable<I>,
+        config: &mut Config,
+        declaration_parser: fn(
+            &mut std::iter::Peekable<I>,
+            &mut Config,
+            usize,
+            &str,
+            &str,
+        ) -> Result<()>,
+    ) -> Result<()>
+    where
+        I: Iterator<Item = (usize, &'a str)>,
+    {
+        loop {
+            // First, we check if we are running into the next header or the end of the file.
+            // We leave that to be handled after we return.
+            match lines.peek() {
+                // Encountered a header. Exiting.
+                Some((_ln, line)) if line.trim_start().starts_with('[') => break,
+                // We are at the end. Exiting.
+                None => break,
+                _ => {}
+            }
+
+            // Let's take the next line now.
+            let (ln, line) = lines.next().unwrap(); // We know it exists.
+            let Some(line) = strip_comments(line) else { continue };
+
+            // Now we know that we are dealing with a declaration line.
+            let Some((keyword, value)) = line.split_once(char::is_whitespace) else {
+                bail!(
+                    "expected a declaration of the form '<keyword> <value>' on line {ln}, but found {line:?}"
+                );
+            };
+
+            let value = value.trim();
+            let keyword = keyword.trim_end();
+            declaration_parser(lines, config, ln, keyword, value)?
+        }
+
+        Ok(())
     }
 
-    /// A helper function for formatting [`Color`] parsing errors.
-    fn c(ln: usize, value: &str) -> String {
-        f(ln, value, "color")
+    fn parse_general_declaration<'a>(
+        _lines: &mut std::iter::Peekable<impl Iterator<Item = (usize, &'a str)>>,
+        config: &mut Config,
+        ln: usize,
+        keyword: &str,
+        value: &str,
+    ) -> std::result::Result<(), anyhow::Error> {
+        match keyword {
+            "show_room" => {
+                config.show_room =
+                    value.parse().context(describe_error(ln, value, keyword, "bool"))?
+            }
+            "data_path" => config.data_path = value.into(),
+            keyword => bail!("unknown keyword {keyword:?} on line {ln}"),
+        }
+
+        Ok(())
     }
 
-    fn parse_general<'a>(
+    fn parse_colors_declaration<'a>(
         lines: &mut std::iter::Peekable<impl Iterator<Item = (usize, &'a str)>>,
         config: &mut Config,
-    ) -> Result<()> {
-        loop {
-            // First, we check if we are running into the next header or the end of the file.
-            // We leave that to be handled after we return.
-            match lines.peek() {
-                // Encountered a header. Exiting.
-                Some((_ln, line)) if line.trim_start().starts_with('[') => break,
-                // We are at the end. Exiting.
-                None => break,
-                _ => {}
-            }
+        ln: usize,
+        keyword: &str,
+        value: &str,
+    ) -> std::result::Result<(), anyhow::Error> {
+        let colors = &mut config.colors;
+        let color = value.parse::<Color>().context(describe_error(ln, value, keyword, "color"));
+        match keyword {
+            "divider" => colors.divider = color?,
+            "user" => colors.user = color?,
+            "hostname" => colors.hostname = color?,
+            "os" => colors.os = color?,
+            "clock" => colors.clock = color?,
+            "gauge" => colors.gauge = color?,
+            "student" => colors.student = color?,
+            "visitor" => colors.visitor = color?,
+            "reservation" => colors.reservation = color?,
+            "owner" => colors.owner = color?,
+            "room" => colors.room = color?,
+            "cores_active" => colors.cores_active = color?,
+            "cores_divider" => colors.cores_divider = color?,
+            "cores_total" => colors.cores_total = color?,
+            "cores_bg" => colors.cores_bg = color?,
+            "active_user" => colors.active_user = color?,
+            "active_task" => colors.active_task = color?,
+            "active_cores" => colors.active_cores = color?,
+            "stats" => colors.stats = color?,
+            "notes" => colors.notes = color?,
 
-            // Let's take the next line now.
-            let (ln, line) = lines.next().unwrap(); // We know it exists.
-            let Some(line) = strip_comments(line) else { continue };
-
-            // Now we know that we are dealing with a declaration line.
-            let Some((keyword, value)) = line.split_once(char::is_whitespace) else {
-                bail!(
-                    "expected a declaration of the form 'keyword value' on line {ln}, but found {line:?}"
-                );
-            };
-
-            match (keyword.trim_end(), value.trim()) {
-                ("show_room", value) => {
-                    config.show_room = value.parse().context(f(ln, value, "bool"))?
+            // The gradient is a bit tricky.
+            "hotness_gradient" => {
+                if value.starts_with('[') {
+                    colors.hotness_gradient = parse_color_list(lines).context(describe_error(
+                        ln,
+                        "[ ... ]",
+                        keyword,
+                        "color list",
+                    ))?
+                } else {
+                    bail!("expected a list starting with '[' at line {ln}, but found {value:?}")
                 }
-                ("data_path", value) => config.data_path = value.into(),
-                (keyword, _) => bail!("unknown keyword {keyword:?} on line {ln}"),
             }
+
+            // And the catch-all for unknown keywords.
+            keyword => bail!("unknown color keyword {keyword:?} on line {ln}"),
         }
 
         Ok(())
     }
 
-    fn parse_colors<'a>(
-        lines: &mut std::iter::Peekable<impl Iterator<Item = (usize, &'a str)>>,
-        config: &mut Colors,
-    ) -> Result<()> {
-        loop {
-            // First, we check if we are running into the next header or the end of the file.
-            // We leave that to be handled after we return.
-            match lines.peek() {
-                // Encountered a header. Exiting.
-                Some((_ln, line)) if line.trim_start().starts_with('[') => break,
-                // We are at the end. Exiting.
-                None => break,
-                _ => {}
-            }
-
-            // Let's take the next line now.
-            let (ln, line) = lines.next().unwrap(); // We know it exists.
-            let Some(line) = strip_comments(line) else { continue };
-
-            // Now we know that we are dealing with a declaration line.
-            let Some((keyword, value)) = line.split_once(char::is_whitespace) else {
-                bail!(
-                    "expected a declaration of the form 'keyword value' on line {ln}, but found {line:?}"
-                );
-            };
-
-            let a = |ln, value: &str| value.parse::<Color>().context(c(ln, value));
-            let value = value.trim();
-            let color = a(ln, value);
-            match (keyword.trim_end(), color) {
-                ("divider", color) => config.divider = color?,
-                ("user", color) => config.user = color?,
-                ("hostname", color) => config.hostname = color?,
-                ("os", color) => config.os = color?,
-                ("clock", color) => config.clock = color?,
-                ("gauge", color) => config.gauge = color?,
-                ("student", color) => config.student = color?,
-                ("visitor", color) => config.visitor = color?,
-                ("reservation", color) => config.reservation = color?,
-                ("owner", color) => config.owner = color?,
-                ("room", color) => config.room = color?,
-                ("cores_active", color) => config.cores_active = color?,
-                ("cores_divider", color) => config.cores_divider = color?,
-                ("cores_total", color) => config.cores_total = color?,
-                ("cores_bg", color) => config.cores_bg = color?,
-                ("active_user", color) => config.active_user = color?,
-                ("active_task", color) => config.active_task = color?,
-                ("active_cores", color) => config.active_cores = color?,
-                ("stats", color) => config.stats = color?,
-                ("notes", color) => config.notes = color?,
-
-                // The gradient is a bit tricky.
-                ("hotness_gradient", _) => {
-                    if value.starts_with('[') {
-                        config.hotness_gradient =
-                            parse_list(lines).context(f(ln, "[ ... ]", "color list"))?
-                    } else {
-                        bail!("expected a list starting with '[' at line {ln}, but found {value:?}")
-                    }
-                }
-
-                // And the catch-all for unknown keywords.
-                (keyword, _) => bail!("unknown color keyword {keyword:?} on line {ln}"),
-            }
-        }
-
-        Ok(())
+    /// A helper function for formatting parsing errors.
+    fn describe_error(ln: usize, value: &str, keyword: &str, expected: &str) -> String {
+        format!("could not parse {value:?} as {expected} for '{keyword}' on line {ln}")
     }
 
-    fn parse_list<'a>(lines: &mut impl Iterator<Item = (usize, &'a str)>) -> Result<Box<[Color]>> {
+    fn parse_color_list<'a>(
+        lines: &mut impl Iterator<Item = (usize, &'a str)>,
+    ) -> Result<Box<[Color]>> {
         lines
             .take_while(|(_ln, line)| !line.contains(']'))
             .map(|(ln, line)| {
                 let value = line.trim();
-                value.parse().context(f(ln, value, "color"))
+                value.parse().context(describe_error(ln, value, "color list value", "color"))
             })
             .collect::<Result<_>>()
     }
