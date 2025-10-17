@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use mu::model::{
     ActiveUser, ClusterData, ClusterUsage, CpuUsage, HostInfo, LoadAvg, MachineDefinition,
-    MachineUsage, Owner, PROCESS_USAGE_THRESHOLD_PERCENT, Usage,
+    MachineUsage, Memory, Owner, PROCESS_USAGE_THRESHOLD_PERCENT, Usage,
 };
 
 pub struct ClusterDataView {
@@ -111,6 +111,7 @@ pub struct MachineView {
     pub owner: Owner,
     pub room: String,
     pub cpu_usage: CpuUsage,
+    pub mem_usage: Memory,
     pub load_avg: LoadAvg,
     pub active_user: Option<ActiveUser>,
     pub show_room: bool,
@@ -126,6 +127,7 @@ impl MachineView {
             used: cpus.iter().filter(|&&u| u > PROCESS_USAGE_THRESHOLD_PERCENT).count() as u32,
             total: cpus.len() as u32,
         };
+        let mem_usage = machine.usage.mem.clone();
         let active_user = processes
             .by_users()
             .into_iter()
@@ -139,6 +141,6 @@ impl MachineView {
                     .map(|cu| cu.name.to_string())
                     .unwrap_or("?".to_string()),
             });
-        Self { hostname, owner, room, cpu_usage, load_avg, active_user, show_room }
+        Self { hostname, owner, room, mem_usage, cpu_usage, load_avg, active_user, show_room }
     }
 }

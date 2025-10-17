@@ -12,7 +12,7 @@ use ratatui::{DefaultTerminal, Frame, symbols};
 
 use crate::config::{Colors, Config};
 use crate::view::{ClusterDataView, MachineView};
-use mu::model::{ActiveUser, ClusterData, CpuUsage, HostInfo, Owner};
+use mu::model::{ActiveUser, ClusterData, CpuUsage, HostInfo, Memory, Owner};
 
 pub struct App {
     colors: Colors,
@@ -181,6 +181,7 @@ impl Widget for &App {
                 Constraint::Max(23), // Note (owner).
                 if self.show_room { Constraint::Max(9) } else { Constraint::Length(0) }, // Room.
                 Constraint::Length(7), // Cores.
+                Constraint::Length(10), // Memory.
                 Constraint::Max(30), // Active user.
             ],
         )
@@ -312,6 +313,17 @@ impl<'a> IntoRow<'a> for MachineView {
             ]))
             .bg(colors.cores_bg)
         };
+        let mem = {
+            let Memory { used, total } = self.mem_usage;
+            let length = 5;
+            let nfilled = ((used * length) / total) as usize;
+            let filled = symbols::line::THICK_HORIZONTAL.repeat(nfilled);
+            let empty = symbols::line::HORIZONTAL.repeat(length as usize - nfilled);
+            Cell::from(Line::from(vec![
+                Span::raw(filled).fg(colors.divider),
+                Span::raw(empty).fg(colors.divider).dim(),
+            ]))
+        };
         let active_user = if let Some(ActiveUser { user, cores, task }) = self.active_user {
             let mut line = Line::from(vec![
                 Span::raw(format!("{user:>8}")).bold().fg(colors.active_user),
@@ -338,6 +350,7 @@ impl<'a> IntoRow<'a> for MachineView {
                 Cell::default() // Empty.
             },
             cpu,
+            mem,
             active_user,
         ])
     }
